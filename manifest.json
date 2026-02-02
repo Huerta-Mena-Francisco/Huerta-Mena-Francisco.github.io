@@ -1,0 +1,16 @@
+{
+  "name": "PO Box El Paso",
+  "short_name": "PO Box",
+  "description": "Sistema de gestión de paquetería",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#3498db",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
