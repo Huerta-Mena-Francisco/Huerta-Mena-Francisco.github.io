@@ -99,12 +99,11 @@ switch (modulo) {
                             moduleContent.innerHTML = `
                                 <div style="padding: 4rem; text-align: center; color: var(--text-secondary);">
                                     <h3>Error al cargar Paquetes</h3>
-                                    <p>Revisa la consola para más detalles (F12 → Console).</p>
+                                    <p>Verifica que js/packages.js esté cargado correctamente.</p>
                                 </div>
                             `;
-                            console.error("Función loadPackages no encontrada. Verifica que js/packages.js esté cargado.");
                         }
-                        break;
+                    break;
                         case "deliveries":
                             if (typeof window.loadDeliveries === "function") {
                                 window.loadDeliveries(moduleContent);
