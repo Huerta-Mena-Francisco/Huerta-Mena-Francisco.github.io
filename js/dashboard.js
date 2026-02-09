@@ -1,4 +1,4 @@
-// js/dashboard.js - Dashboard con métricas y gráficos
+// js/dashboard.js - Dashboard con métricas y backup
 
 console.log("Módulo Dashboard cargado");
 
@@ -93,6 +93,66 @@ async function loadDashboard(container) {
             </div>
         </div>
         
+        <!-- SECCIÓN DE RESPALDO DE DATOS -->
+        <div style="margin-top: 2.5rem; padding-top: 1.5rem; border-top: 2px solid #e74c3c;">
+            <h4 style="color: #e74c3c; margin-bottom: 1rem;">
+                💾 Respaldo de Datos
+            </h4>
+            
+            <div style="background: #fff8e1; padding: 1.5rem; border-radius: 8px; border: 1px solid #ffeaa7;">
+                <p style="color: #856404; margin-bottom: 1.5rem; font-size: 0.95rem;">
+                    <strong>⚠️ IMPORTANTE:</strong> IndexedDB se borra al limpiar el navegador. 
+                    Exporta regularmente tus datos y guárdalos en Google Drive o USB.
+                </p>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <!-- EXPORTAR -->
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📥</div>
+                        <h5 style="color: #27ae60; margin-bottom: 0.5rem;">Exportar Datos</h5>
+                        <p style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 1rem;">
+                            Descarga un archivo con todos los datos del sistema
+                        </p>
+                        <button id="btn-export-backup" 
+                                style="padding: 0.8rem 1.5rem; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                            📥 Descargar Backup
+                        </button>
+                    </div>
+                    
+                    <!-- IMPORTAR -->
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📤</div>
+                        <h5 style="color: #e67e22; margin-bottom: 0.5rem;">Restaurar Datos</h5>
+                        <p style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 1rem;">
+                            Sube un archivo de backup para restaurar datos
+                        </p>
+                        <div>
+                            <input type="file" id="backup-file-input" accept=".json" 
+                                   style="display: none;">
+                            <button id="btn-import-backup" 
+                                    style="padding: 0.8rem 1.5rem; background: #e67e22; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                📤 Seleccionar Backup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ESTADO -->
+                <div id="backup-status" style="margin-top: 1.5rem; padding: 1rem; border-radius: 6px; display: none;"></div>
+                
+                <!-- INSTRUCCIONES -->
+                <div style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 6px;">
+                    <h6 style="color: #2c3e50; margin-bottom: 0.5rem;">📝 Instrucciones:</h6>
+                    <ul style="color: #7f8c8d; font-size: 0.9rem; margin: 0; padding-left: 1.2rem;">
+                        <li>Exporta al final de cada día de trabajo</li>
+                        <li>Guarda el archivo en Google Drive o USB</li>
+                        <li>La restauración BORRA todos los datos actuales</li>
+                        <li>¡No olvides hacer backups regularmente!</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
         <style>
             @keyframes spin {
                 0% { transform: rotate(0deg); }
@@ -119,7 +179,135 @@ async function loadDashboard(container) {
         </style>
     `;
     
+    // Configurar eventos de backup DESPUÉS de renderizar
+    configurarEventosBackup(container);
+    
+    // Actualizar dashboard
     await actualizarDashboard();
+}
+
+function configurarEventosBackup(container) {
+    // Exportar backup
+    container.querySelector('#btn-export-backup').addEventListener('click', async () => {
+        const statusDiv = container.querySelector('#backup-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<div style="color: #3498db;">⏳ Generando backup...</div>';
+        
+        try {
+            // Verificar que la función existe
+            if (typeof Storage.exportBackupData !== 'function') {
+                throw new Error("Función de backup no disponible");
+            }
+            
+            const result = await Storage.exportBackupData();
+            
+            if (result.success) {
+                statusDiv.innerHTML = `
+                    <div style="color: #27ae60;">
+                        ✅ <strong>Backup exportado exitosamente</strong>
+                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">
+                            Datos exportados:<br>
+                            • ${result.counts?.clients || 0} clientes<br>
+                            • ${result.counts?.packages || 0} paquetes<br>
+                            • ${result.counts?.racks || 0} racks<br>
+                            • ${result.counts?.plans || 0} planes
+                        </div>
+                    </div>
+                `;
+                
+                // Ocultar mensaje después de 5 segundos
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            } else {
+                statusDiv.innerHTML = `<div style="color: #e74c3c;">❌ Error: ${result.error || 'Error desconocido'}</div>`;
+            }
+        } catch (error) {
+            console.error("Error exportando backup:", error);
+            statusDiv.innerHTML = `<div style="color: #e74c3c;">❌ Error: ${error.message}</div>`;
+        }
+    });
+    
+    // Importar backup (abrir selector de archivos)
+    container.querySelector('#btn-import-backup').addEventListener('click', () => {
+        container.querySelector('#backup-file-input').click();
+    });
+    
+    // Manejar selección de archivo
+    container.querySelector('#backup-file-input').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const statusDiv = container.querySelector('#backup-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<div style="color: #3498db;">⏳ Leyendo archivo...</div>';
+        
+        try {
+            // 1. Leer y validar archivo
+            const backupInfo = await Storage.importBackupData(file);
+            
+            if (!backupInfo.success) {
+                throw new Error(backupInfo.error);
+            }
+            
+            // 2. Mostrar confirmación con lo que se va a restaurar
+            const confirmar = confirm(
+                `⚠️ ¡ADVERTENCIA! ⚠️\n\n` +
+                `Esto BORRARÁ todos los datos actuales y restaurará:\n` +
+                `• ${backupInfo.counts.clients} clientes\n` +
+                `• ${backupInfo.counts.packages} paquetes\n` +
+                `• ${backupInfo.counts.racks} racks\n` +
+                `• ${backupInfo.counts.plans} planes\n\n` +
+                `Backup del: ${new Date(backupInfo.exportDate).toLocaleString()}\n\n` +
+                `¿Continuar con la restauración?`
+            );
+            
+            if (!confirmar) {
+                statusDiv.innerHTML = '<div style="color: #f39c12;">⏹️ Restauración cancelada</div>';
+                e.target.value = ''; // Limpiar input
+                setTimeout(() => statusDiv.style.display = 'none', 3000);
+                return;
+            }
+            
+            // 3. Proceder con restauración
+            statusDiv.innerHTML = '<div style="color: #3498db;">⏳ Restaurando datos...</div>';
+            
+            const restoreResult = await Storage.restoreBackupData(backupInfo.data);
+            
+            if (restoreResult.success) {
+                statusDiv.innerHTML = `
+                    <div style="color: #27ae60;">
+                        ✅ <strong>¡Datos restaurados exitosamente!</strong>
+                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">
+                            Se restauraron:<br>
+                            • ${restoreResult.restored.clients} clientes<br>
+                            • ${restoreResult.restored.packages} paquetes<br>
+                            • ${restoreResult.restored.racks} racks<br>
+                            • ${restoreResult.restored.plans} planes
+                        </div>
+                        <div style="font-size: 0.85rem; color: #7f8c8d; margin-top: 0.5rem;">
+                            Backup del: ${new Date(restoreResult.exportDate).toLocaleString()}
+                        </div>
+                    </div>
+                `;
+                
+                // Recargar dashboard después de 3 segundos
+                setTimeout(() => {
+                    window.loadDashboard(container);
+                }, 3000);
+                
+            } else {
+                statusDiv.innerHTML = `<div style="color: #e74c3c;">❌ Error restaurando: ${restoreResult.error}</div>`;
+            }
+            
+        } catch (error) {
+            console.error("Error importando backup:", error);
+            statusDiv.innerHTML = `<div style="color: #e74c3c;">❌ Error: ${error.message}</div>`;
+        }
+        
+        // Limpiar input
+        e.target.value = '';
+    });
 }
 
 async function actualizarDashboard() {
@@ -457,3 +645,6 @@ function mostrarError(mensaje) {
         `;
     }
 }
+
+// Registrar función global
+window.loadDashboard = loadDashboard;

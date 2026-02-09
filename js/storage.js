@@ -561,6 +561,139 @@ async function processTrackingScan(trackingNumber, recipientName = null, boxNumb
     }
 }
 
+// ========== FUNCIONES DE BACKUP Y RESTAURACIÓN ==========
+
+async function exportBackupData() {
+    try {
+        const data = {
+            clients: await getAll("clients"),
+            packages: await getAll("packages"),
+            racks: await getAll("racks"),
+            plans: await getAll("plans"),
+            exportDate: new Date().toISOString(),
+            version: DB_VERSION,
+            system: "POBox El Paso Backup"
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pobox-backup-${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        URL.revokeObjectURL(url);
+        
+        return {
+            success: true,
+            filename: a.download,
+            counts: {
+                clients: data.clients.length,
+                packages: data.packages.length,
+                racks: data.racks.length,
+                plans: data.plans.length
+            }
+        };
+        
+    } catch (error) {
+        console.error("Error exportando backup:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+async function importBackupData(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = async function(event) {
+            try {
+                const data = JSON.parse(event.target.result);
+                
+                // Validar formato básico
+                if (!data.exportDate || !data.version) {
+                    throw new Error("Archivo de backup inválido");
+                }
+                
+                resolve({
+                    success: true,
+                    data: data,
+                    counts: {
+                        clients: data.clients?.length || 0,
+                        packages: data.packages?.length || 0,
+                        racks: data.racks?.length || 0,
+                        plans: data.plans?.length || 0
+                    },
+                    exportDate: data.exportDate
+                });
+                
+            } catch (error) {
+                reject(new Error(`Error leyendo backup: ${error.message}`));
+            }
+        };
+        
+        reader.onerror = () => reject(new Error("Error leyendo archivo"));
+        reader.readAsText(file);
+    });
+}
+
+async function restoreBackupData(backupData) {
+    try {
+        const data = backupData.data || backupData;
+        
+        // 1. Eliminar datos existentes
+        const stores = ["clients", "packages", "racks", "plans"];
+        for (const store of stores) {
+            const items = await getAll(store);
+            for (const item of items) {
+                await deleteItem(store, item.id);
+            }
+        }
+        
+        // 2. Restaurar nuevos datos
+        if (data.clients && Array.isArray(data.clients)) {
+            for (const client of data.clients) {
+                await addItem("clients", client);
+            }
+        }
+        
+        if (data.packages && Array.isArray(data.packages)) {
+            for (const pkg of data.packages) {
+                await addItem("packages", pkg);
+            }
+        }
+        
+        if (data.racks && Array.isArray(data.racks)) {
+            for (const rack of data.racks) {
+                await addItem("racks", rack);
+            }
+        }
+        
+        if (data.plans && Array.isArray(data.plans)) {
+            for (const plan of data.plans) {
+                await addItem("plans", plan);
+            }
+        }
+        
+        return {
+            success: true,
+            restored: {
+                clients: data.clients?.length || 0,
+                packages: data.packages?.length || 0,
+                racks: data.racks?.length || 0,
+                plans: data.plans?.length || 0
+            },
+            exportDate: data.exportDate
+        };
+        
+    } catch (error) {
+        console.error("Error restaurando backup:", error);
+        return { success: false, error: error.message };
+    }
+}
+
 // ========== EXPORTAR ==========
 
 window.Storage = {
@@ -601,7 +734,10 @@ window.Storage = {
     detectCourier,
     findClientInPackage,
     checkClientPackageLimit,
-    processTrackingScan
+    processTrackingScan,
+    exportBackupData,
+    importBackupData,
+    restoreBackupData
 };
 
 console.log('💾 Storage: Sistema listo con funciones de tracking');
